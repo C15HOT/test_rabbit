@@ -1,50 +1,35 @@
+import time
+
 from app.libs.wrappers.rabbit_wrapper import RabbitMQWrapper
 from app.settings import get_settings
 import asyncio
-
+from multiprocessing import Process, Manager
 
 settings = get_settings()
 
-#
-# class AsyncIterator:
-#
-#     def __init__(self):
-#         self.counter = 0
-#
-#     def __aiter__(self):
-#         return self
-#
-#     async def __anext__(self):
-#         self.counter += 1
-#         return self.counter
+def qwerty(list_of_messages):
 
-
-async def qwerty():
     while True:
-        print(list_of_messages)
+
+        print(f'функция qwerty печатает {list_of_messages}')
         if len(list_of_messages) > 0:
             message = list_of_messages[0]
             list_of_messages.remove(message)
             handler(message)
-        await asyncio.sleep(5)
-
-
-
-
+        time.sleep(5)
 
 def handler(message):
     import time
     start_time = time.time()
     print('start')
     print(message)
-    time.sleep(10)
+    time.sleep(600)
     print("--- %s seconds ---" % (time.time() - start_time))
     print('end')
 
 
-list_of_messages = []
+async def get_messages(list_of_messages):
 
-async def get_messages():
     rabbit_mq = RabbitMQWrapper()
     queue_name = settings.queue_name
     await rabbit_mq.startup_event_handler()
@@ -54,11 +39,23 @@ async def get_messages():
             async for message in queue_iter:
                 async with message.process():
                     list_of_messages.append(message.body.decode())
+                    print(f'добавилось видео {message.body.decode()}')
+                    print(f'функция get_messages печатает {list_of_messages}')
 
     await rabbit_mq.shutdown_event_handler()
 
+def huy(list_of_messages):
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(get_messages(list_of_messages))
 
 def main():
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(asyncio.gather(get_messages(), qwerty()))
+    manager = Manager()
+    list_of_messages = manager.list()
+    qwerty_p = Process(target=qwerty, args=(list_of_messages,))
+    huy_p = Process(target=huy, args=(list_of_messages,))
+    qwerty_p.start()
+    huy_p.start()
+    qwerty_p.join()
+    huy_p.join()
+    # loop = asyncio.get_event_loop()
     # loop.run_until_complete(get_messages())
